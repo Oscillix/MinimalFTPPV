@@ -286,6 +286,8 @@
         const clickSound = new Audio(clickSoundUrl);
         clickSound.volume = 0.10;
 
+        let cameraOrder = []; // Array to store the original order of cameras
+
         async function fetchPlaylist(url) {
             try {
                 const response = await fetch(url);
@@ -309,86 +311,112 @@
                     }
                 }
             }
+            cameraOrder = [...cameras];
             return cameras;
         }
 
         async function checkStreamAvailability(url) {
             try {
                 const response = await fetch(url, { method: 'HEAD' });
-                return response.status === 200;
-            } catch (error) {
+                return response.ok;
+            } catch {
                 return false;
             }
         }
 
         async function initCameraGrid() {
-            cameraGrid.innerHTML = '';
+            try {
+                cameraGrid.innerHTML = '';
+                const playlist = await fetchPlaylist(playlistUrl);
 
-            const playlist = await fetchPlaylist(playlistUrl);
-            totalCameras = playlist.length;
+                const fragment = document.createDocumentFragment();
+                totalCameras = playlist.length;
+                camerasLoaded = 0;
 
-            for (const camera of playlist) {
-                const cameraElement = document.createElement('div');
-                cameraElement.className = 'camera';
-                cameraElement.id = `camera-${camera.name}`;
-
-                const isAvailable = await checkStreamAvailability(camera.url);
-                let cameraName = camera.name;
-                cameraName = cameraName.replace(/^- \[PPVLAND\] Fishtank S3 - /, '');
-
-                if (!isAvailable) {
-                    cameraName += " <span style=\"color: red;\">[OFFLINE]</span>";
-                    cameraElement.style.backgroundColor = 'black';
-                    cameraElement.innerHTML = `
-                    <div class="camera-image-container">
-                        <img src="fallback.webp" alt="Offline" class="camera-image">
-                    </div>
-                    <div class="camera-title">${cameraName}</div>
-                `;
-                } else {
-                    cameraElement.innerHTML = `
-                    <img src="${backendUrl}${encodeURIComponent(camera.url)}&t=${Date.now()}" alt="${cameraName}">
-                    <div class="camera-title">${cameraName}</div>
-                `;
-                }
-
-                cameraElement.addEventListener('mouseover', () => {
-                    hoverSound.currentTime = 0;
-                    hoverSound.play();
+                playlist.forEach(async (camera) => {
+                    const cameraElement = await createCameraElement(camera);
+                    fragment.appendChild(cameraElement);
+                    camerasLoaded++;
+                    updateProgress(camera.name);
+                    if (camerasLoaded === totalCameras) finalizeLoading();
                 });
 
-                cameraElement.addEventListener('click', () => {
-                    clickSound.currentTime = 0;
-                    clickSound.play();
-
-                    if (activeCamera) {
-                        activeCamera.classList.remove('active');
-                    }
-                    cameraElement.classList.add('active');
-                    activeCamera = cameraElement;
-
-                    document.getElementById('current-camera').textContent = `${cameraName}`;
-
-                    openVideo(camera.url);
+                cameraGrid.innerHTML = '';
+                cameraOrder.forEach(async (camera) => {
+                    const cameraElement = await createCameraElement(camera);
+                    cameraGrid.appendChild(cameraElement);
                 });
 
-                cameraGrid.appendChild(cameraElement);
-                camerasLoaded++;
-
-                if (camerasLoaded === totalCameras) {
-                    progressText.innerText = `All ${totalCameras} cameras loaded.`;
-
-                    setTimeout(() => {
-                        progressText.classList.add('fade-out');
-                        setTimeout(() => {
-                            document.querySelector('.progress-container').remove();
-                        }, 1000);
-                    }, 1000);
-                } else {
-                    progressText.innerText = `${camerasLoaded} / ${totalCameras} loaded (${cameraName})`;
-                }
+            } catch (error) {
+                console.error("Error initializing camera grid:", error);
             }
         }
+
+        async function createCameraElement(camera) {
+            const cameraElement = document.createElement('div');
+            cameraElement.className = 'camera';
+            cameraElement.id = `camera-${camera.name}`;
+
+            const isAvailable = await checkStreamAvailability(camera.url);
+            const sanitizedName = sanitizeCameraName(camera.name);
+            console.log(camera.name + " - " + isAvailable)
+            if (!isAvailable) {
+                cameraElement.style.backgroundColor = 'black';
+                cameraElement.innerHTML = `
+            <div class="camera-image-container">
+                <img src="fallback.webp" alt="Offline" class="camera-image">
+            </div>
+            <div class="camera-title">${sanitizedName} <span style="color: red;">[OFFLINE]</span></div>
+        `;
+            } else {
+                console.log("Inserted camera element")
+                cameraElement.innerHTML = `
+            <img src="${backendUrl}${encodeURIComponent(camera.url)}&t=${Date.now()}" alt="${sanitizedName}">
+            <div class="camera-title">${sanitizedName}</div>
+        `;
+            }
+
+            addCameraEvents(cameraElement, camera.url, sanitizedName);
+            return cameraElement;
+        }
+
+        function sanitizeCameraName(name) {
+            return name.replace(/^- \[PPVLAND\] Fishtank S3 - /, '').trim();
+        }
+
+        function addCameraEvents(cameraElement, url, name) {
+            cameraElement.addEventListener('mouseover', () => {
+                hoverSound.currentTime = 0;
+                hoverSound.play();
+            });
+
+            cameraElement.addEventListener('click', () => {
+                clickSound.currentTime = 0;
+                clickSound.play();
+
+                if (activeCamera) activeCamera.classList.remove('active');
+                cameraElement.classList.add('active');
+                activeCamera = cameraElement;
+
+                document.getElementById('current-camera').textContent = name;
+                openVideo(url);
+            });
+        }
+
+        function updateProgress(cameraName) {
+            progressText.innerText = `${camerasLoaded} / ${totalCameras} loaded (${sanitizeCameraName(cameraName)})`;
+        }
+
+        function finalizeLoading() {
+            progressText.innerText = `All ${totalCameras} cameras loaded.`;
+            setTimeout(() => {
+                progressText.classList.add('fade-out');
+                setTimeout(() => {
+                    document.querySelector('.progress-container')?.remove();
+                }, 1000);
+            }, 1000);
+        }
+
 
         let videoJsPlayer;
         function openVideo(url) {
