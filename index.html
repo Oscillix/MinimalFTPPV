@@ -255,16 +255,17 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
     <script>
-
         // Fuck you for blocking CORS
         const playlistUrl = 'https://corsproxy.io/?' + encodeURIComponent('https://ppv.land/fishtank.m3u');
-
         const backendUrl = "http://localhost:3000/thumbnail?url="; // Backend endpoint for thumbnails
-        const cameraGrid = document.getElementById('camera-grid');
-        const videoModal = document.getElementById('video-modal');
-        const videoPlayer = document.getElementById('video-player');
         const timeTracker = document.getElementById('time-tracker');
         const dayTracker = document.getElementById('day-tracker');
+        const cameraGrid = document.getElementById('camera-grid');
+        const progressText = document.getElementById('progress-text');
+        const videoModal = document.getElementById('video-modal');
+        const videoPlayer = document.getElementById('video-player');
+        const searchInput = document.getElementById('search');
+        const currentCameraInfo = document.getElementById('current-camera');
 
         const startDate = new Date("2024-10-27");
         const endDate = new Date("2024-12-08");
@@ -272,8 +273,6 @@
         let activeCamera = null;
 
         let camerasLoaded = 0;
-        const progressBar = document.getElementById('progress-bar');
-        const progressText = document.getElementById('progress-text');
         let totalCameras = 0;
 
         // Sound URLs
@@ -315,12 +314,17 @@
             return cameras;
         }
 
-        async function checkStreamAvailability(url) {
+        async function checkStreamAvailability(url, timeout = 5000) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             try {
-                const response = await fetch(url, { method: 'HEAD' });
+                const response = await fetch(url, { method: 'HEAD', signal: controller.signal });
                 return response.ok;
             } catch {
                 return false;
+            } finally {
+                clearTimeout(timeoutId);
             }
         }
 
@@ -334,7 +338,7 @@
                 camerasLoaded = 0;
 
                 playlist.forEach(async (camera) => {
-                    const cameraElement = await createCameraElement(camera);
+                    const cameraElement = await createCameraElement(camera, true, true);
                     fragment.appendChild(cameraElement);
                     camerasLoaded++;
                     updateProgress(camera.name);
@@ -345,30 +349,47 @@
             }
         }
 
-        async function createCameraElement(camera) {
+        async function createCameraElement(camera, isAvailable = true, fragment = false) {
             const cameraElement = document.createElement('div');
             cameraElement.className = 'camera';
             cameraElement.id = `camera-${camera.name}`;
-
-            const isAvailable = await checkStreamAvailability(camera.url);
             const sanitizedName = sanitizeCameraName(camera.name);
-            
-            if (!isAvailable) {
-                cameraElement.style.backgroundColor = 'black';
-                cameraElement.innerHTML = `
-            <div class="camera-image-container">
-                <img src="fallback.webp" alt="Offline" class="camera-image">
-            </div>
-            <div class="camera-title">${sanitizedName} <span style="color: red;">[OFFLINE]</span></div>
-        `;
-            } else {
-                cameraElement.innerHTML = `
-            <img src="${backendUrl}${encodeURIComponent(camera.url)}&t=${Date.now()}" alt="${sanitizedName}">
-            <div class="camera-title">${sanitizedName}</div>
-        `;
+
+            if (fragment) {
+                return cameraElement;
             }
 
+            const cameraImageContainer = document.createElement('div');
+            cameraImageContainer.classList.add('camera-image-container');
+
+            const cameraTitle = document.createElement('div');
+            cameraTitle.classList.add('camera-title');
+            cameraTitle.textContent = sanitizedName;
+
+            if (isAvailable) {
+                const cameraImage = document.createElement('img');
+                cameraImage.src = `${backendUrl}${encodeURIComponent(camera.url)}&t=${Date.now()}`;
+                cameraImage.alt = sanitizedName;
+                cameraImageContainer.appendChild(cameraImage);
+            } else {
+                cameraElement.style.backgroundColor = 'black';
+                const offlineImage = document.createElement('img');
+                offlineImage.src = 'fallback.webp';
+                offlineImage.alt = 'Offline';
+                offlineImage.classList.add('camera-image');
+                cameraImageContainer.appendChild(offlineImage);
+
+                const offlineStatus = document.createElement('span');
+                offlineStatus.style.color = 'red';
+                offlineStatus.textContent = '[OFFLINE]';
+                cameraTitle.appendChild(offlineStatus);
+            }
+
+            cameraElement.appendChild(cameraImageContainer);
+            cameraElement.appendChild(cameraTitle);
+
             addCameraEvents(cameraElement, camera.url, sanitizedName);
+
             return cameraElement;
         }
 
@@ -400,10 +421,14 @@
         }
 
         async function reorderCameras() {
-            for await (const camera of cameraOrder) {
-                const cameraElement = await createCameraElement(camera);
-                cameraGrid.appendChild(cameraElement);
-            }
+            const availabilityChecks = cameraOrder.map(async (camera) => {
+                const isAvailable = await checkStreamAvailability(camera.url);
+                const cameraElement = await createCameraElement(camera, isAvailable);
+                return cameraElement;
+            });
+
+            const cameraElements = await Promise.all(availabilityChecks);
+            cameraElements.forEach(element => cameraGrid.appendChild(element));
         }
 
         function finalizeLoading() {
@@ -431,11 +456,6 @@
             }
             videoJsPlayer.src({ src: url, type: 'application/x-mpegURL' });
             videoModal.style.display = 'flex';
-        }
-
-        function closeModal() {
-            videoModal.style.display = 'none';
-            videoJsPlayer.pause();
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -471,15 +491,27 @@
 
         setInterval(updateTimeTracker, 1000);
 
-        const searchInput = document.getElementById('search');
-
+        let debounceTimeout;
         searchInput.addEventListener('input', (e) => {
-            const searchText = e.target.value.toLowerCase();
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+                const searchText = e.target.value.toLowerCase();
+                document.querySelectorAll('.camera').forEach(camera => {
+                    const title = camera.querySelector('.camera-title').innerText.toLowerCase();
+                    camera.style.display = title.includes(searchText) ? 'block' : 'none';
+                });
+            }, 100);
+        });
+
+        window.addEventListener('load', () => {
+            const savedSearchText = localStorage.getItem('searchText') || '';
+            searchInput.value = savedSearchText;
             document.querySelectorAll('.camera').forEach(camera => {
                 const title = camera.querySelector('.camera-title').innerText.toLowerCase();
-                camera.style.display = title.includes(searchText) ? 'block' : 'none';
+                camera.style.display = title.includes(savedSearchText) ? 'block' : 'none';
             });
         });
+
     </script>
 
 </body>
