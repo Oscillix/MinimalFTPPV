@@ -14,4 +14,4 @@ Run the thumbnail server: <code>node server.js</code>
 Open index.html
 
 # **Preview** 
-![Desktop view](Preview.png)
+![Desktop view](Preview.webp)
