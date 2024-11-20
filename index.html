@@ -245,7 +245,7 @@
         <div class="camera-container">
             <input type="text" id="search" placeholder="Search Cameras..." />
             <div class="progress-container">
-                <div class="progress-text" id="progress-text">0/?</div>
+                <div class="progress-text" id="progress-text">Loading...</div>
             </div>
             <br>
             <div class="camera-grid" id="camera-grid"></div>
@@ -340,13 +340,6 @@
                     updateProgress(camera.name);
                     if (camerasLoaded === totalCameras) finalizeLoading();
                 });
-
-                cameraGrid.innerHTML = '';
-                cameraOrder.forEach(async (camera) => {
-                    const cameraElement = await createCameraElement(camera);
-                    cameraGrid.appendChild(cameraElement);
-                });
-
             } catch (error) {
                 console.error("Error initializing camera grid:", error);
             }
@@ -359,7 +352,7 @@
 
             const isAvailable = await checkStreamAvailability(camera.url);
             const sanitizedName = sanitizeCameraName(camera.name);
-            console.log(camera.name + " - " + isAvailable)
+            
             if (!isAvailable) {
                 cameraElement.style.backgroundColor = 'black';
                 cameraElement.innerHTML = `
@@ -369,7 +362,6 @@
             <div class="camera-title">${sanitizedName} <span style="color: red;">[OFFLINE]</span></div>
         `;
             } else {
-                console.log("Inserted camera element")
                 cameraElement.innerHTML = `
             <img src="${backendUrl}${encodeURIComponent(camera.url)}&t=${Date.now()}" alt="${sanitizedName}">
             <div class="camera-title">${sanitizedName}</div>
@@ -407,7 +399,16 @@
             progressText.innerText = `${camerasLoaded} / ${totalCameras} loaded (${sanitizeCameraName(cameraName)})`;
         }
 
+        async function reorderCameras() {
+            for await (const camera of cameraOrder) {
+                const cameraElement = await createCameraElement(camera);
+                cameraGrid.appendChild(cameraElement);
+            }
+        }
+
         function finalizeLoading() {
+            reorderCameras()
+
             progressText.innerText = `All ${totalCameras} cameras loaded.`;
             setTimeout(() => {
                 progressText.classList.add('fade-out');
@@ -416,7 +417,6 @@
                 }, 1000);
             }, 1000);
         }
-
 
         let videoJsPlayer;
         function openVideo(url) {
@@ -441,7 +441,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             initCameraGrid();
         });
-
 
         function updateDayTracker() {
             const now = new Date();
