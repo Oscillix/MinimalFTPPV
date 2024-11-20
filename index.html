@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FISHTANK MOMENT</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;700&display=swap" rel="stylesheet">
+
+    <link href="https://vjs.zencdn.net/8.0.4/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/8.0.4/video.min.js"></script>
+
+    <link href="videojs.css" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: "Kanit", sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #121212;
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 5;
+            flex-direction: row;
+            height: 100%;
+        }
+
+        .camera-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 20%;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 15px;
+            background-color: #080808;
+            height: 100vh;
+            z-index: 1000;
+        }
+
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .progress-text {
+            position: absolute;
+            color: white;
+            font-size: 12px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                border-color: #006ff7;
+                scale: calc(90%);
+                filter: blur(5px) grayscale(100%) brightness(0%);
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                display: none;
+                opacity: 0;
+            }
+        }
+
+        .fade-out {
+            animation: fadeOut 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .camera {
+            position: relative;
+            overflow: hidden;
+            border-radius: 5px;
+            background-color: #212529;
+            border: 1px solid #626262;
+            cursor: pointer;
+            opacity: 0;
+            transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+            animation: fadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .camera:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 0px 5px rgb(239, 56, 56, 0.5);
+            border-color: rgb(239, 56, 56, 0.5);
+        }
+
+        .camera.active {
+            border-color: rgb(239, 56, 56);
+            box-shadow: 0px 0px 10px rgb(239, 56, 56);
+        }
+
+        .camera img {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .camera-title {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            width: auto;
+            text-align: center;
+            border-radius: 8px;
+            background-color: rgba(17, 17, 17, 0.8);
+            color: #fff;
+            padding: 4px 8px;
+            font-size: 12px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
+            letter-spacing: 0.5px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal {
+            display: none;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 1);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            position: absolute;
+            align-content: center;
+            right: 0%;
+            background-color: #000;
+            border-radius: 8px;
+            width: 80vw;
+            height: 100vh;
+            overflow: hidden;
+            object-fit: contain;
+        }
+
+        .time-day-container {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 10px;
+            width: 100%;
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 300;
+        }
+
+        .time-tracker,
+        .day-tracker,
+        .camera-info {
+            border-radius: 8px;
+            background-color: rgba(13, 13, 13, 0.8);
+            color: #fff;
+            padding: 8px 12px;
+            font-size: 12px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
+            letter-spacing: 0.5px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .time-tracker,
+        .camera-info {
+            margin-right: 10px;
+        }
+
+        .video-js .vjs-control-bar,
+        .video-js .vjs-big-play-button,
+        .video-js .vjs-menu-button .vjs-menu-content {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        .video-js {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        #search {
+            position: sticky;
+            top: 0;
+            z-index: 1001;
+            width: 100%;
+            border-radius: 8px;
+            background-color: rgba(13, 13, 13, 0.8);
+            color: #fff;
+            padding: 8px 12px;
+            font-size: 12px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
+            letter-spacing: 0.5px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <div class="modal" id="video-modal">
+            <div class="modal-content">
+                <video id="video-player" class="video-js vjs-default-skin" controls autoplay preload="auto"></video>
+            </div>
+        </div>
+
+        <div class="time-day-container">
+            <div id="current-camera" class="camera-info"></div>
+            <div id="time-tracker" class="time-tracker">Loading Time...</div>
+            <div id="day-tracker" class="day-tracker">Loading Day...</div>
+        </div>
+
+        <div class="camera-container">
+            <input type="text" id="search" placeholder="Search Cameras..." />
+            <div class="progress-container">
+                <div class="progress-text" id="progress-text">0/?</div>
+            </div>
+            <br>
+            <div class="camera-grid" id="camera-grid"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <script>
+
+        // Fuck you for blocking CORS
+        const playlistUrl = 'https://corsproxy.io/?' + encodeURIComponent('https://ppv.land/fishtank.m3u');
+
+        const backendUrl = "http://localhost:3000/thumbnail?url="; // Backend endpoint for thumbnails
+        const cameraGrid = document.getElementById('camera-grid');
+        const videoModal = document.getElementById('video-modal');
+        const videoPlayer = document.getElementById('video-player');
+        const timeTracker = document.getElementById('time-tracker');
+        const dayTracker = document.getElementById('day-tracker');
+
+        const startDate = new Date("2024-10-27");
+        const endDate = new Date("2024-12-08");
+
+        let activeCamera = null;
+
+        let camerasLoaded = 0;
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        let totalCameras = 0;
+
+        // Sound URLs
+        const hoverSoundUrl = "https://cdn.fishtank.live/sounds/blip.mp3";
+        const clickSoundUrl = "https://cdn.fishtank.live/sounds/chunk-short.mp3";
+
+        const hoverSound = new Audio(hoverSoundUrl);
+        hoverSound.volume = 0.10;
+
+        const clickSound = new Audio(clickSoundUrl);
+        clickSound.volume = 0.10;
+
+        async function fetchPlaylist(url) {
+            try {
+                const response = await fetch(url);
+                const text = await response.text();
+                return parseM3U(text);
+            } catch (error) {
+                console.error("Failed to fetch playlist:", error);
+                return [];
+            }
+        }
+
+        function parseM3U(data) {
+            const lines = data.split("\n").filter(line => line.trim());
+            const cameras = [];
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith("#EXTINF")) {
+                    const name = lines[i].split(",")[1].trim();
+                    const url = lines[i + 1]?.trim();
+                    if (url && !url.startsWith("#")) {
+                        cameras.push({ name, url });
+                    }
+                }
+            }
+            return cameras;
+        }
+
+        async function checkStreamAvailability(url) {
+            try {
+                const response = await fetch(url, { method: 'HEAD' });
+                return response.status === 200;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        async function initCameraGrid() {
+            cameraGrid.innerHTML = '';
+
+            const playlist = await fetchPlaylist(playlistUrl);
+            totalCameras = playlist.length;
+
+            for (const camera of playlist) {
+                const cameraElement = document.createElement('div');
+                cameraElement.className = 'camera';
+                cameraElement.id = `camera-${camera.name}`;
+
+                const isAvailable = await checkStreamAvailability(camera.url);
+                let cameraName = camera.name;
+                cameraName = cameraName.replace(/^- \[PPVLAND\] Fishtank S3 - /, '');
+
+                if (!isAvailable) {
+                    cameraName += " <span style=\"color: red;\">[OFFLINE]</span>";
+                    cameraElement.style.backgroundColor = 'black';
+                    cameraElement.innerHTML = `
+                    <div class="camera-image-container">
+                        <img src="fallback.webp" alt="Offline" class="camera-image">
+                    </div>
+                    <div class="camera-title">${cameraName}</div>
+                `;
+                } else {
+                    cameraElement.innerHTML = `
+                    <img src="${backendUrl}${encodeURIComponent(camera.url)}&t=${Date.now()}" alt="${cameraName}">
+                    <div class="camera-title">${cameraName}</div>
+                `;
+                }
+
+                cameraElement.addEventListener('mouseover', () => {
+                    hoverSound.currentTime = 0;
+                    hoverSound.play();
+                });
+
+                cameraElement.addEventListener('click', () => {
+                    clickSound.currentTime = 0;
+                    clickSound.play();
+
+                    if (activeCamera) {
+                        activeCamera.classList.remove('active');
+                    }
+                    cameraElement.classList.add('active');
+                    activeCamera = cameraElement;
+
+                    document.getElementById('current-camera').textContent = `${cameraName}`;
+
+                    openVideo(camera.url);
+                });
+
+                cameraGrid.appendChild(cameraElement);
+                camerasLoaded++;
+
+                if (camerasLoaded === totalCameras) {
+                    progressText.innerText = `All ${totalCameras} cameras loaded.`;
+
+                    setTimeout(() => {
+                        progressText.classList.add('fade-out');
+                        setTimeout(() => {
+                            document.querySelector('.progress-container').remove();
+                        }, 1000);
+                    }, 1000);
+                } else {
+                    progressText.innerText = `${camerasLoaded} / ${totalCameras} loaded (${cameraName})`;
+                }
+            }
+        }
+
+        let videoJsPlayer;
+        function openVideo(url) {
+            if (!videoJsPlayer) {
+                videoJsPlayer = videojs(videoPlayer, {
+                    autoplay: true,
+                    controls: true,
+                    preload: 'auto',
+                    fill: true,
+                    liveui: true,
+                });
+            }
+            videoJsPlayer.src({ src: url, type: 'application/x-mpegURL' });
+            videoModal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            videoModal.style.display = 'none';
+            videoJsPlayer.pause();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initCameraGrid();
+        });
+
+
+        function updateDayTracker() {
+            const now = new Date();
+            const options = { timeZone: "America/New_York", year: "numeric", month: "numeric", day: "numeric" };
+            const nyDate = new Date(now.toLocaleString('en-US', options));
+            const nyStartDate = new Date(startDate.toLocaleString('en-US', options));
+
+            const daysPassed = Math.floor((nyDate - nyStartDate) / (1000 * 60 * 60 * 24));
+            const daysLeft = Math.floor((endDate - nyDate) / (1000 * 60 * 60 * 24));
+
+            dayTracker.textContent = `Day: ${daysPassed} (Left: ${daysLeft})`;
+        }
+
+        updateDayTracker();
+
+        function updateTimeTracker() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString("en-US", {
+                hour12: true,
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                timeZone: "America/New_York"
+            });
+
+            timeTracker.textContent = `Time: ${timeString}`;
+        }
+
+        setInterval(updateTimeTracker, 1000);
+
+        const searchInput = document.getElementById('search');
+
+        searchInput.addEventListener('input', (e) => {
+            const searchText = e.target.value.toLowerCase();
+            document.querySelectorAll('.camera').forEach(camera => {
+                const title = camera.querySelector('.camera-title').innerText.toLowerCase();
+                camera.style.display = title.includes(searchText) ? 'block' : 'none';
+            });
+        });
+    </script>
+
+</body>
+
+</html>
