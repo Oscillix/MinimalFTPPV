@@ -16,6 +16,14 @@
     <link href="videojs.css" rel="stylesheet">
 
     <style>
+        * {
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -o-user-select: none;
+            user-select: none;
+        }
+
         body {
             font-family: "Kanit", sans-serif;
             margin: 0;
@@ -370,12 +378,14 @@
                 const cameraImage = document.createElement('img');
                 cameraImage.src = `${backendUrl}${encodeURIComponent(camera.url)}&t=${Date.now()}`;
                 cameraImage.alt = sanitizedName;
+                cameraImage.draggable = false;
                 cameraImageContainer.appendChild(cameraImage);
             } else {
                 cameraElement.style.backgroundColor = 'black';
                 const offlineImage = document.createElement('img');
                 offlineImage.src = 'fallback.webp';
                 offlineImage.alt = 'Offline';
+                cameraImage.draggable = false;
                 offlineImage.classList.add('camera-image');
                 cameraImageContainer.appendChild(offlineImage);
 
