@@ -19,7 +19,7 @@ Currently supports **desktop browsers only**.
     <code>node server.js</code>
 
 3. **Open the UI**:  
-   Open the `index.html` file in your browser.  
+   Open `localhost:1337` in your browser.  
 
 ---
 
